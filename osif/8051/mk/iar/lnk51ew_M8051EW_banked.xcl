@@ -1,0 +1,127 @@
+////////////////////////////////////////////////////////////////////////////////
+//    lnk51ew_C8051F124_banked.xcl: linker command file for IAR Embedded Workbench IDE
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Segment limits
+//  ==============
+//
+//    IDATA
+//    -----
+-D_IDATA0_START=0x00
+-D_IDATA0_END=0xFF
+//
+//    PDATA
+//    -----
+-D_PDATA0_START=0x0000
+-D_PDATA0_END=0x00FF
+//
+//    IXDATA
+//    ------
+-D_IXDATA0_START=0x0001
+-D_IXDATA0_END=0x1FFF
+//
+//    XDATA
+//    -----
+-D_XDATA0_START=0x0001
+-D_XDATA0_END=0x2FFF
+//
+//    NEAR CODE
+//    ---------
+-D_NEAR_CODE_START=0x0000
+//
+//  Special SFRs
+//  ============
+//
+//    CODE bank setup
+//    ---------------
+-D_FIRST_BANK_ADDR=0x10000
+//
+//    Register bank setup
+//    -------------------
+-D?REGISTER_BANK=0x0
+-D_REGISTER_BANK_START=0x0
+//
+//    PDATA page setup
+//    ----------------
+-D?PBANK_NUMBER=0x00
+//
+//    Virtual register setup
+//    ----------------------
+-D_BREG_START=0x00
+-D?VB=0x20
+-D?ESP=0x9B                   //Extended stack pointer register location
+//
+////////////////////////////////////////////////////////////////////////////////
+// Do not edit the section below unless you are very sure of what you do
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+//  IDATA memory
+//  ============
+-Z(BIT)BREG=_BREG_START
+-Z(BIT)BIT_N=0-7F
+-Z(DATA)REGISTERS+8=_REGISTER_BANK_START
+-Z(DATA)BDATA_Z,BDATA_N,BDATA_I=20-2F
+-Z(DATA)VREG+_NR_OF_VIRTUAL_REGISTERS=08-7F
+-Z(DATA)PSP,XSP=08-7F
+-Z(DATA)DOVERLAY=08-7F
+-Z(DATA)DATA_I,DATA_Z,DATA_N=08-7F
+-U(IDATA)0-7F=(DATA)0-7F
+-Z(IDATA)IDATA_I,IDATA_Z,IDATA_N=08-_IDATA0_END
+-Z(IDATA)ISTACK+_IDATA_STACK_SIZE#08-_IDATA0_END
+-Z(IDATA)IOVERLAY=08-FF
+//
+//  ROM memory
+//  ==========
+//
+//    Top of memory
+//    -------------
+-Z(CODE)INTVEC=0
+-Z(CODE)CSTART=_NEAR_CODE_START-(_CODEBANK_START-1)
+//
+//    Initializers
+//    ------------
+-Z(CODE)BIT_ID,BDATA_ID,DATA_ID,IDATA_ID,IXDATA_ID,PDATA_ID,XDATA_ID=_NEAR_CODE_START-(_CODEBANK_START-1)
+-Z(CODE)HUGE_ID=_NEAR_CODE_START-(_CODEBANK_START-1)
+//
+//    Program memory
+//    --------------
+-Z(CODE)BANK_RELAYS,RCODE,DIFUNCT=_NEAR_CODE_START-(_CODEBANK_START-1)
+-P(CODE)CODE_C,CODE_N,NEAR_CODE=_NEAR_CODE_START-(_CODEBANK_START-1)
+//
+//    Banked code
+//    -----------
+-P(CODE)BANKED_CODE=_NEAR_CODE_START-(_CODEBANK_START-1),[(_CODEBANK_START+_FIRST_BANK_ADDR)-(_CODEBANK_END+_FIRST_BANK_ADDR)]*_NR_OF_BANKS+10000
+//
+//    Checksum
+//    --------
+-Z(CODE)CHECKSUM#(_CODEBANK_START-1)
+//
+//  XDATA memory
+//  ============
+//
+//    PDATA - data memory
+//    -------------------
+-Z(XDATA)PDATA_Z,PDATA_I=_PDATA0_START-_PDATA0_END
+-P(XDATA)PDATA_N=_PDATA0_START-_PDATA0_END
+-Z(XDATA)PSTACK+_PDATA_STACK_SIZE=_PDATA0_START-_PDATA0_END
+//
+//    Stacks located in XDATA
+//    -----------------------
+-Z(XDATA)EXT_STACK+_EXTENDED_STACK_SIZE=_EXTENDED_STACK_START
+-Z(XDATA)XSTACK+_XDATA_STACK_SIZE=_XDATA0_START-_XDATA0_END
+//
+//    XDATA - data memory
+//    -------------------
+-Z(XDATA)IXDATA_Z,IXDATA_I=_IXDATA0_START-_IXDATA0_END
+-P(XDATA)IXDATA_N=_IXDATA0_START-_IXDATA0_END
+-Z(XDATA)XDATA_Z,XDATA_I=_XDATA0_START-_XDATA0_END
+-P(XDATA)XDATA_N=_XDATA0_START-_XDATA0_END
+-Z(XDATA)XDATA_HEAP+_XDATA_HEAP_SIZE=_XDATA0_START-_XDATA0_END
+-Z(CONST)XDATA_ROM_C=_XDATA0_START-_XDATA0_END
+-Z(CODE)FAR22_ID=_NEAR_CODE_START-(_CODEBANK_START-1)
+-Z(CODE)FAR_ID=_NEAR_CODE_START-(_CODEBANK_START-1)
+//
+//  Core
+//  ====
+-cx51

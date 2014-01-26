@@ -1,0 +1,225 @@
+#/***************************************************************************
+#*                      ZBOSS ZigBee Pro 2007 stack                         *
+#*                                                                          *
+#*          Copyright (c) 2012 DSR Corporation Denver CO, USA.              *
+#*                       http://www.dsr-wireless.com                        *
+#*                                                                          *
+#*                            All rights reserved.                          *
+#*          Copyright (c) 2011 ClarIDy Solutions, Inc., Taipei, Taiwan.     *
+#*                       http://www.claridy.com/                            *
+#*                                                                          *
+#*          Copyright (c) 2011 Uniband Electronic Corporation (UBEC),       *
+#*                             Hsinchu, Taiwan.                             *
+#*                       http://www.ubec.com.tw/                            *
+#*                                                                          *
+#*          Copyright (c) 2011 DSR Corporation Denver CO, USA.              *
+#*                       http://www.dsr-wireless.com                        *
+#*                                                                          *
+#*                            All rights reserved.                          *
+#*                                                                          *
+#*                                                                          *
+#* ZigBee Pro 2007 stack, also known as ZBOSS (R) ZB stack is available     *
+#* under either the terms of the Commercial License or the GNU General      *
+#* Public License version 2.0.  As a recipient of ZigBee Pro 2007 stack, you*
+#* may choose which license to receive this code under (except as noted in  *
+#* per-module LICENSE files).                                               *
+#*                                                                          *
+#* ZBOSS is a registered trademark of DSR Corporation AKA Data Storage      *
+#* Research LLC.                                                            *
+#*                                                                          *
+#* GNU General Public License Usage                                         *
+#* This file may be used under the terms of the GNU General Public License  *
+#* version 2.0 as published by the Free Software Foundation and appearing   *
+#* in the file LICENSE.GPL included in the packaging of this file.  Please  *
+#* review the following information to ensure the GNU General Public        *
+#* License version 2.0 requirements will be met:                            *
+#* http://www.gnu.org/licenses/old-licenses/gpl-2.0.html.                   *
+#*                                                                          *
+#* Commercial Usage                                                         *
+#* Licensees holding valid ClarIDy/UBEC/DSR Commercial licenses may use     *
+#* this file in accordance with the ClarIDy/UBEC/DSR Commercial License     *
+#* Agreement provided with the Software or, alternatively, in accordance    *
+#* with the terms contained in a written agreement between you and          *
+#* ClarIDy/UBEC/DSR.                                                        *
+#*                                                                          *
+#****************************************************************************
+#PURPOSE: Include file for Zigbee build under Unix
+#*/
+
+CFLAGS=$(CFLAGS_DEBUG)
+
+PLATFORM_DEFINES=-DZB_PLATFORM_LINUX_PC32
+
+####### Common options
+
+CC	=	gcc
+#CC	=	cxref-cc
+CXX	=	g++
+LD      =       ld
+
+#MEMDEBUG      = -lefence
+#MEMDEBUG      = -ldl -lccmalloc /usr/lib/ccmalloc-g++.o -lccmalloc
+MEMDEBUG      = 
+
+
+#
+# Configure trace by changing ZB_TRACE_MASK (one bit per layer)
+# and ZB_TRACE_LEVEL (messages with layer > ZB_TRACE_LEVEL are unvisible).
+# Do not define ZB_TRACE_LEVEL to switch off trace.
+#
+TRACE_DEFINES = -DZB_TRACE_LEVEL=4 -DZB_TRACE_MASK=-1
+
+DEBUG_DEFINES = -DDEBUG $(TRACE_DEFINES)
+
+DEBUG_CFLAGS   = -g
+
+RELEASE_CFLAGS  = -O3
+
+PROFILE_CFLAGS  = -g -O3 -pg
+
+WERROR = -Werror
+WARN_OPTIONS = -W -Wall -Wpointer-arith -Wcast-align -std=gnu99 -Wno-format-zero-length  -Wno-format-zero-length -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-unused-but-set-variable
+WARN_OPTIONS_CXX = -W -Wall -Wpointer-arith -Wcast-align -pedantic
+
+CFLAGS_BUILD_CFG = $(DEBUG_CFLAGS)
+
+DEFINES = $(PLATFORM_DEFINES) $(DEBUG_DEFINES)
+
+CFLAGS = $(CFLAGS_BUILD_CFG) $(CFLAGS_USER) -pipe $(WARN_OPTIONS) -fno-strict-aliasing $(WERROR)
+CXXFLAGS = $(CFLAGS_BUILD_CFG) $(CFLAGS_USER) -pipe $(WARN_OPTIONS_CXX) -fno-strict-aliasing $(WERROR)
+
+DEPSWITCH      = -MM
+AR	=	ar
+RM      =       rm -rf
+MAKE    =       make -e
+
+MAKE_LIB    = $(AR) r $@ $^
+
+PROF_FLAG=
+
+LINK_BINARY = $(CC) $(PROF_FLAG) -o $@ $^ $(MEMDEBUG) -lpthread $(LINK_FLAGS) $(LIBS) $(LIBS)
+LINK_BINARY_ED = $(CC) $(PROF_FLAG) -o $@ $^ $(MEMDEBUG) -lpthread $(LINK_FLAGS) $(LIBS_ED) $(LIBS_ED)
+LINK_BINARY_CXX = $(CXX) -g $(PROF_FLAG) -o $@ $^ $(MEMDEBUG) -lpthread $(LINK_FLAGS)
+
+#
+# Implicit rules
+#
+
+OBJ_SUFFIX=.o
+EXE=
+OBJS = ${SRCS:.c=.o}
+OBJS_ED = ${SRCS:.c=.ed.o}
+
+.SUFFIXES: .cpp .c .o .ed.o
+
+.cpp.o:
+	$(CXX) -c $(CXXFLAGS) $(DEFINES) $(INCPATH) -o $@ $<
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(DEFINES) $(INCPATH) -o $@ $<
+
+.c.ed.o:
+	$(CC) -c $(CFLAGS) $(DEFINES) -DZB_ED_ROLE $(INCPATH) -o $@ $<
+
+bldall : all
+
+clean: doclean
+
+doclean:
+	$(RM) *.o *.a core core.* vgcore.* *~ */*.o src/*~ src/*.o include/*~ $(BINS) $(OTHERS_CLEAN) $(TMP_SRCS)
+
+PRETEST = echo
+
+test:
+	$(RM) *.log
+	@for T in $(BINS_TEST) ; do \
+		echo "Running test $$T ..." ; \
+		[ A"$(PRETEST)" = A ] || $(PRETEST) ; \
+		$(RM) *.log ; \
+		./$$T ; \
+		if test $$? -ne 0; then \
+			echo "Error in test $$T" ; \
+			exit -1 ; \
+		fi ; \
+		echo "ok" ; echo "" ; \
+	done
+
+rebuild: clean all
+
+
+depend : $(SRCS)
+	[ A"$(FAKE_DEPS)" = A ] || touch $(FAKE_DEPS)
+	[ A"$(SRCS)" = A ] ||\
+	$(CC) $(INCPATH) $(DEFINES) $(DEPSWITCH) $(SRCS) >> $(BUILD_HOME)/deps
+
+# object dependencies
+include $(BUILD_HOME)/deps
+include $(BUILD_HOME)/Platform
+
+#
+# Modules definition: Libs & Includes
+#
+
+# logger
+COMMON_LIB = $(BUILD_HOME)/common/libcommon.a
+COMMON_INC = $(BUILD_HOME)/include
+COMMON_LIB_ED = $(BUILD_HOME)/common/libcommon.ed.a
+
+# osif
+OSIF_INC = $(BUILD_HOME)/osif/include
+OSIF_LIB = $(BUILD_HOME)/osif/unix/libosif.a
+OSIF_LIB_ED = $(BUILD_HOME)/osif/unix/libosif.ed.a
+
+# MAC
+MAC_LIB = $(BUILD_HOME)/mac/libmac.a
+MAC_LIB_ED = $(BUILD_HOME)/mac/libmac.ed.a
+
+# NWK
+NWK_LIB = $(BUILD_HOME)/nwk/libnwk.a
+NWK_LIB_ED = $(BUILD_HOME)/nwk/libnwk.ed.a
+
+# APS
+APS_LIB = $(BUILD_HOME)/aps/libaps.a
+APS_LIB_ED = $(BUILD_HOME)/aps/libaps.ed.a
+
+# ZDO
+ZDO_LIB = $(BUILD_HOME)/zdo/libzdo.a
+ZDO_LIB_ED = $(BUILD_HOME)/zdo/libzdo.ed.a
+
+# Security
+SECUR_LIB = $(BUILD_HOME)/secur/libsec.a
+SECUR_LIB_ED = $(BUILD_HOME)/secur/libsec.ed.a
+
+# ZCL
+ZCL_LIB = $(BUILD_HOME)/zcl/libzcl.a
+ZCL_LIB_ED = $(BUILD_HOME)/zcl/libzcl.ed.a
+
+#
+# #####
+#
+
+INCPATH += -I$(OSIF_INC) -I$(COMMON_INC)
+
+LIBS_WO_APS= \
+	$(COMMON_LIB) \
+	$(OSIF_LIB) \
+	$(MAC_LIB) \
+	$(NWK_LIB)
+
+LIBS = \
+	$(LIBS_WO_APS) \
+	$(SECUR_LIB) \
+	$(APS_LIB) \
+	$(ZDO_LIB)
+
+LIBS_WO_APS_ED= \
+	$(COMMON_LIB_ED) \
+	$(OSIF_LIB_ED) \
+	$(MAC_LIB_ED) \
+	$(NWK_LIB_ED)
+
+LIBS_ED = \
+	$(LIBS_WO_APS_ED) \
+	$(SECUR_LIB_ED) \
+	$(APS_LIB_ED) \
+	$(ZDO_LIB_ED)

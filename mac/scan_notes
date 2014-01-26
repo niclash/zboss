@@ -1,0 +1,58 @@
+Scan refactoring:
+- to kill sync timer (used in ed scan only) - alarms became the only time mechanism
+- to unite common parts and decrease code size
+
+scan parameters:
+- channels mask
+- duration
+- type
+
+Scan types implemented:
+- ed
+  remember scan params (pending buf?)
+  save current channel
+  set beacon only mode
+  loop on all channels masked by the channels mask {
+       set channel
+       until timeout loop {
+         get rssi, rmember max rssi
+       }
+       assign rssi in the confirm
+  }
+  set saved channel
+  set normal mode
+
+- active
+  remember scan params (pending buf?)
+  save current channel
+  set beacon only mode
+  loop on all channels masked by the channels mask {
+       set channel
+       send beacon request
+       wait for send complete
+       until timeout loop {
+             if have in packet, receive and parse it (wants beacons)
+       }
+  }
+  set saved channel
+  set normal mode
+
+- orphan
+  remember scan params (pending buf?)
+  loop on all channels masked by the channels mask {
+       set channel
+       send orphan notification command
+       wait for send complete
+       until timeout loop {
+             if have in packet, receive and parse it (wants coord realignment)
+             if got coord realignment, break channel loop
+       }
+  }
+
+
+common routine:
+
+remember scan params
+save current channel
+set beacon only mode, if necessary
+remember current channel

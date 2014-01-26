@@ -1,0 +1,683 @@
+/*******************************************************************************
+ *
+ * Functions to make banked CALL and RET.
+ *
+ * The register holding current code bank:
+ *
+ *   ?CBANK
+ *
+ * Should be defined to IAR XLINK Linker with:
+ *
+ *   -D?CBANK=xx
+ *
+ * The functions needed are BCALL_XX, BRET_XX and BDISPATCH_XX where XX must 
+ * correspond to the value set to the symbol ?CBANK_MASK. (Default is FF). 
+ * Included in the product is implementations which uses bank masks:
+ *  - FF (default, no masking will be performed on ?CBANK)
+ *  - 30 (Used by for example TI's CC2430 device)
+ *  - 03 (Used by for example Silabs C8051F12X/13X devices)
+ *  - 07 (Used by example TI's CC2530 device)
+ *
+ * Should your device be using any other bank mask, please create your own 
+ * BCALL_XX, BRET_XX and BDISPATCH_XX functions that deals with your specific 
+ * bank mask.	
+ *
+ * Copyright 2004-2005,2008 IAR Systems. All rights reserved.
+ *
+ * $Revision: 5422 $
+ *
+ ******************************************************************************/
+
+#include "iar_common.h"
+
+
+	MODULE	?BANKED_CODE_SUPPORT
+
+#if ( __CODE_MODEL__ == __CM_BANKED__)
+	EXTERN  ?CBANK
+	EXTERN  ?RESET_CODE_BANK
+	REQUIRE ?RESET_CODE_BANK
+        EXTERNS_FOR_ALL_DPTR_SYMBOLS()
+
+;=============================================================================
+; FF Mask support routines begins
+;=============================================================================
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BCALL_FF
+;
+;	Description: Saves the caller bank on stack, Switches to bank defined
+;                    by A register and jumps to the banked function A:DPTR.
+;
+;	Register input:
+;	        DPTR:  16-bit function address
+;	        A:     8-bit page address
+;
+;	Stack:
+;
+;		+--------+
+;		| ?CBANK | <-- SP end
+;		+ - - - -+
+;		|  retH  | <-- SP begin
+;		+ - - - -+
+;		|  retL  |
+;		+ - - - -+
+;       CFA --> | xxxxxx |
+;		+--------+
+;
+;               16-bit return address
+;
+;	Register output:
+;	        DPTR:  16-bit function-address
+;	        A  = 0
+;
+;	Stack usage: 1
+;-----------------------------------------------------------------------------
+	RSEG	CSTART:CODE:NOROOT
+	PUBLIC	?BCALL_FF
+    cfi BLOCK ?BCALL_FF USING cfi_common
+    cfi NOFUNCTION
+    cfi A undefined
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+?BCALL_FF:
+	PUSH	?CBANK
+    cfi CFA_MACHINE MACHINE_SP - 3
+	MOV	?CBANK,A
+	CLR	A
+	JMP	@A+DPTR
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BRET_FF
+;
+;	Description: Return from banked function.
+;	             Leaves current function, Switched bank and returns to
+;                    function that called ?BCALL_FF.
+;
+;                    NOTE: This function will be jumped to.
+;
+;	Register input:
+;               None
+;
+;	Stack input:
+;
+;		+------------+ <-- SP
+;		|  RET bank  |
+;		+ - - - - - -+
+;		|  RET High  |
+;		+ - - - - - -+
+;		|  RET Low   |
+;		+------------+
+;
+;               24-bit return address
+;
+;	Register output:
+;	        DPTR:  16-bit function-address
+;	        A  = 0
+;
+;	Stack usage: 3
+;               Stack: 16-bit return address
+;-----------------------------------------------------------------------------
+	PUBLIC	?BRET_FF
+?BRET_FF:
+    cfi CFA_MACHINE MACHINE_SP - 3
+	POP	?CBANK
+    cfi CFA_MACHINE MACHINE_SP - 2
+	RET
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BDISPATCH_FF
+;
+;	Description: Pushes current bank number, and reads function address
+; 	from relay function into ?CBANK and onto stack and RET's
+;
+;	Register input:
+;
+;	Stack: +1
+;
+;	Register output: A = ?
+;			 DPTR = 16-bit function adress
+;
+;	Stack usage:	PUSH	A
+;-----------------------------------------------------------------------------
+	PUBLIC	?BDISPATCH_FF
+    cfi CFA_MACHINE MACHINE_SP - 4
+
+?BDISPATCH_FF:
+#if (__NUMBER_OF_DPTRS__ > 1)
+	SELECT_DPTR0()
+#endif
+	POP	DPH
+    cfi CFA_MACHINE MACHINE_SP - 3
+	POP	DPL
+    cfi CFA_MACHINE MACHINE_SP - 2
+	PUSH	?CBANK
+    cfi CFA_MACHINE MACHINE_SP - 3
+	CLR	A
+	MOVC	A,@A+DPTR
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 4
+	MOV	A,#1;
+	MOVC	A,@A+DPTR
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 5	
+	MOV	A,#2
+	MOVC	A,@A+DPTR
+	MOV	?CBANK,A
+	RET	
+    cfi ENDBLOCK ?BCALL_FF
+
+;=============================================================================
+; FF Mask support routines ends
+;=============================================================================
+
+;=============================================================================
+; 30 Mask support routines begins
+;=============================================================================
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BCALL_30
+;
+;       Description: Saves the caller bank on stack, Switches to bank defined
+;                    by A register and jumps to the banked function A:DPTR.
+;
+;       Register input:
+;               DPTR:  16-bit function address
+;               A:     8-bit page address
+;
+;       Stack:
+;
+;           +--------+
+;           | ?CBANK | <-- SP end
+;           + - - - -+
+;           |  retH  | <-- SP begin
+;           + - - - -+
+;           |  retL  |
+;           + - - - -+
+;   CFA --> | xxxxxx |
+;           +--------+
+;
+;               16-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 1
+;-----------------------------------------------------------------------------
+	RSEG	CSTART:CODE:NOROOT
+    cfi BLOCK ?BCALL_30 USING cfi_common
+    cfi NOFUNCTION
+	PUBLIC  ?BCALL_30
+
+;   cfi NOFUNCTION
+    cfi A undefined
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+?BCALL_30:
+	SWAP  A
+	PUSH  B
+	MOV   B, A
+	MOV   A, ?CBANK   ; read current MEMCTR
+	ANL   A, #0x30    ; mask bank bits
+	SWAP  A
+	PUSH  A           ; store return bank (bank number only)
+    cfi CFA_MACHINE MACHINE_SP - 3
+	MOV   A, ?CBANK   ; read current MEMCTR
+	ANL   A, #0xCF    ; mask bank bits
+	ORL   A, B        ; add new bank number to MEMCTR
+	MOV   ?CBANK, A
+	POP   B	
+	CLR   A
+	JMP   @A+DPTR
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BRET_30
+;
+;       Description: Return from banked function.
+;                    Leaves current function, Switched bank and returns to
+;                    function that called ?BCALL.
+;
+;                    NOTE: This function will be jumped to.
+;
+;       Register input:
+;               None
+;
+;       Stack input:
+;
+;               +------------+ <-- SP
+;               |  RET bank  |
+;               + - - - - - -+
+;               |  RET High  |
+;               + - - - - - -+
+;               |  RET Low   |
+;               +------------+
+;
+;               24-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 3
+;               Stack: 16-bit return address
+;-----------------------------------------------------------------------------
+	PUBLIC  ?BRET_30
+?BRET_30:
+    cfi CFA_MACHINE MACHINE_SP - 3
+	MOV   B, ?CBANK   ; get current bank
+	ANL   B, #0xCF    ; mask bank bits
+
+	POP   A           ; pop bank number
+	SWAP  A
+	ORL   A, B        ; add the MEMCTR bits
+	MOV   ?CBANK, A   ; set new bank
+    cfi   CFA_MACHINE MACHINE_SP - 2
+	RET
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BDISPATCH_30
+;
+;	Description: Pushes current bank number, and reads function address
+; 	from relay function into ?CBANK and onto stack and RET's
+;
+;	Register input:
+;
+;	Stack: +1
+;
+;	Register output: A = ?
+;			 DPTR = 16-bit function adress
+;
+;	Stack usage:	PUSH	A
+;-----------------------------------------------------------------------------
+	PUBLIC	?BDISPATCH_30
+    CFI CFA_MACHINE MACHINE_SP - 4
+
+?BDISPATCH_30:
+#if (__NUMBER_OF_DPTRS__ > 1)
+	SELECT_DPTR0()
+#endif	
+	POP	DPH
+    CFI CFA_MACHINE MACHINE_SP - 3
+	POP	DPL
+    CFI CFA_MACHINE MACHINE_SP - 2
+
+        MOV     A,?CBANK
+        SWAP    A
+        ANL     A,#0x03
+	PUSH	A
+    CFI CFA_MACHINE MACHINE_SP - 3
+
+	CLR	A
+	MOVC	A,@A+DPTR
+	PUSH	A
+    CFI CFA_MACHINE MACHINE_SP - 4
+	MOV	A,#1;
+	MOVC	A,@A+DPTR
+	PUSH	A
+    CFI CFA_MACHINE MACHINE_SP - 5
+	MOV	A,#2
+	MOVC	A,@A+DPTR
+
+        SWAP    A
+        ANL     A,#0x30
+	PUSH    B
+        MOV     B,A
+	MOV	A,?CBANK
+        ANL     A,#0xCF
+        ORL     A,B
+	POP     B
+	MOV	?CBANK,A
+	RET	
+    cfi ENDBLOCK ?BCALL_30
+
+;=============================================================================
+; 30 Mask support routines ends
+;=============================================================================
+
+;=============================================================================
+; 03 Mask support routines begins
+;=============================================================================
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BCALL_03
+;
+;       Description: Saves the caller bank on stack, Switches to bank defined
+;                    by A register and jumps to the banked function A:DPTR.
+;
+;       Register input:
+;               DPTR:  16-bit function address
+;               A:     8-bit page address
+;
+;       Stack:
+;
+;           +--------+
+;           | ?CBANK | <-- SP end
+;           + - - - -+
+;           |  retH  | <-- SP begin
+;           + - - - -+
+;           |  retL  |
+;           + - - - -+
+;   CFA --> | xxxxxx |
+;           +--------+
+;
+;               16-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 1
+;-----------------------------------------------------------------------------
+	RSEG	CSTART:CODE:NOROOT
+    cfi BLOCK ?BCALL_03 USING cfi_common
+	PUBLIC  ?BCALL_03
+    cfi NOFUNCTION
+    cfi A undefined
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+?BCALL_03:
+	PUSH  B
+	MOV   B, A
+	MOV   A, ?CBANK   ; read current PSBANK
+	ANL   A, #0x03    ; mask COBANK-bank bits so that we get the IFBANK
+	PUSH  A           ; store return bank (bank number (IFBANK) only)
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	MOV   A, ?CBANK   ; read current PSBANK
+	ANL   A, #0xFC    ; mask IFBANK bits
+	ORL   A, B        ; add new bank number (in B-reg) to PSBANK
+	POP   B
+	MOV   ?CBANK, A   ; set new bank 
+	CLR   A
+	JMP   @A+DPTR     ; jump into the new bank
+
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BRET_03
+;
+;       Description: Return from banked function.
+;                    Leaves current function, Switched bank and returns to
+;                    function that called ?BCALL_03.
+;
+;                    NOTE: This function will be jumped to.
+;
+;       Register input:
+;               None
+;
+;       Stack input:
+;
+;               +------------+ <-- SP
+;               |  RET bank  |
+;               + - - - - - -+
+;               |  RET High  |
+;               + - - - - - -+
+;               |  RET Low   |
+;               +------------+
+;
+;               24-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 3
+;               Stack: 16-bit return address
+;-----------------------------------------------------------------------------
+   PUBLIC  ?BRET_03
+
+?BRET_03:
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	MOV   B, ?CBANK   ; get current bank
+	ANL   B, #0xFC    ; mask bank bits
+
+	POP   A           ; pop bank number
+	ORL   A, B        ; add the PSBANK bits
+	MOV   ?CBANK, A   ; set new bank
+    cfi   CFA_MACHINE MACHINE_SP - 2
+
+	RET
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BDISPATCH_03
+;
+;	Description: Pushes current bank number, and reads function address
+; 	from relay function into ?CBANK and onto stack and RET's
+;
+;	Register input:
+;
+;	Stack: +1
+;
+;	Register output: A = ?
+;			 B = ?
+;			 DPTR = 16-bit function adress
+;
+;	Stack usage:	PUSH	A
+;-----------------------------------------------------------------------------
+	PUBLIC	?BDISPATCH_03
+    cfi CFA_MACHINE MACHINE_SP - 4
+
+?BDISPATCH_03:
+#if (__NUMBER_OF_DPTRS__ > 1)
+	SELECT_DPTR0()
+#endif
+	POP	DPH
+    cfi CFA_MACHINE MACHINE_SP - 3
+	POP	DPL
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+        MOV     A, ?CBANK
+        ANL     A, #0x03
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	CLR	A
+	MOVC	A, @A+DPTR
+;        SUBB    A, #0x01
+        PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 4
+	MOV	A, #1
+	MOVC	A, @A+DPTR
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 5
+	MOV	A, #2
+	MOVC	A, @A+DPTR
+
+        ANL     A, #0x03
+	PUSH    B
+        MOV     B, A
+	MOV	A, ?CBANK
+        ANL     A, #0xFC
+        ORL     A, B
+	POP     B
+;       ADD     A, #0x01
+        MOV	?CBANK,A
+	RET	
+   cfi ENDBLOCK ?BCALL_03
+
+;=============================================================================
+; 03 Mask support routines ends
+;=============================================================================
+
+;=============================================================================
+; 07 Mask support routines begins
+;=============================================================================
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BCALL_07
+;
+;       Description: Saves the caller bank on stack, Switches to bank defined
+;                    by A register and jumps to the banked function A:DPTR.
+;
+;       Register input:
+;               DPTR:  16-bit function address
+;               A:     8-bit page address
+;
+;       Stack:
+;
+;           +--------+
+;           | ?CBANK | <-- SP end
+;           + - - - -+
+;           |  retH  | <-- SP begin
+;           + - - - -+
+;           |  retL  |
+;           + - - - -+
+;   CFA --> | xxxxxx |
+;           +--------+
+;
+;               16-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 1
+;-----------------------------------------------------------------------------
+	RSEG	CSTART:CODE:NOROOT
+    cfi BLOCK ?BCALL_07 USING cfi_common
+	PUBLIC  ?BCALL_07
+    cfi NOFUNCTION
+    cfi A undefined
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+?BCALL_07:
+	PUSH  B
+	MOV   B, A
+	MOV   A, ?CBANK   ; read current PSBANK
+	ANL   A, #0x07    ; mask COBANK-bank bits so that we get the IFBANK
+	PUSH  A           ; store return bank (bank number (IFBANK) only)
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	MOV   A, ?CBANK   ; read current PSBANK
+	ANL   A, #0xF8    ; mask IFBANK bits
+	ORL   A, B        ; add new bank number (in B-reg) to PSBANK
+	POP   B
+	MOV   ?CBANK, A   ; set new bank
+
+	CLR   A
+	JMP   @A+DPTR     ; jump into the new bank
+
+
+;-----------------------------------------------------------------------------
+;
+;       Function: ?BRET_07
+;
+;       Description: Return from banked function.
+;                    Leaves current function, Switched bank and returns to
+;                    function that called ?BCALL_07.
+;
+;                    NOTE: This function will be jumped to.
+;
+;       Register input:
+;               None
+;
+;       Stack input:
+;
+;               +------------+ <-- SP
+;               |  RET bank  |
+;               + - - - - - -+
+;               |  RET High  |
+;               + - - - - - -+
+;               |  RET Low   |
+;               +------------+
+;
+;               24-bit return address
+;
+;       Register output:
+;               DPTR:  16-bit function-address
+;               A  = 0
+;
+;       Stack usage: 3
+;               Stack: 16-bit return address
+;-----------------------------------------------------------------------------
+   PUBLIC  ?BRET_07
+
+?BRET_07:
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	MOV   B, ?CBANK   ; get current bank
+	ANL   B, #0xF8    ; mask bank bits
+
+	POP   A           ; pop bank number
+	ORL   A, B        ; add the PSBANK bits
+	MOV   ?CBANK, A   ; set new bank
+    cfi   CFA_MACHINE MACHINE_SP - 2
+
+	RET
+
+;-----------------------------------------------------------------------------
+;
+;	Function: ?BDISPATCH_07
+;
+;	Description: Pushes current bank number, and reads function address
+; 	from relay function into ?CBANK and onto stack and RET's
+;
+;	Register input:
+;
+;	Stack: +1
+;
+;	Register output: A = ?
+;			 B = ?
+;			 DPTR = 16-bit function adress
+;
+;	Stack usage:	PUSH	A
+;-----------------------------------------------------------------------------
+	PUBLIC	?BDISPATCH_07
+    cfi CFA_MACHINE MACHINE_SP - 4
+
+?BDISPATCH_07:
+#if (__NUMBER_OF_DPTRS__ > 1)
+	SELECT_DPTR0()
+#endif
+	POP	DPH
+    cfi CFA_MACHINE MACHINE_SP - 3
+	POP	DPL
+    cfi CFA_MACHINE MACHINE_SP - 2
+
+        MOV     A, ?CBANK
+        ANL     A, #0x07
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 3
+
+	CLR	A
+	MOVC	A, @A+DPTR
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 4
+	MOV	A, #1
+	MOVC	A, @A+DPTR
+	PUSH	A
+    cfi CFA_MACHINE MACHINE_SP - 5
+	MOV	A, #2
+	MOVC	A, @A+DPTR
+
+        ANL     A, #0x07
+	PUSH    B
+        MOV     B, A
+	MOV	A, ?CBANK
+        ANL     A, #0xF8
+        ORL     A, B
+	POP     B
+	MOV	?CBANK,A
+	RET	
+   cfi ENDBLOCK ?BCALL_07
+
+;=============================================================================
+; 07 Mask support routines ends
+;=============================================================================
+	
+	ENDMOD	
+	
+#endif
+	END
+

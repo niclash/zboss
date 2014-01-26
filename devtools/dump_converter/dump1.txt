@@ -1,0 +1,75 @@
+# FIFO RX: set address
+04 81
+# long reg 0x300 write: (0x300 << 5) | 0x8000  = 0xd610
+e0 00
+
+# RX FIFI get
+79 01
+      6d 21 88 00 00 00  01 00 00 00 02 00 28 00
+01 00 02 00 01 00 40 00  01 00 02 00 00 67 30 31
+32 33 34 35 36 37 38 39  3a 3b 3c 3d 3e 3f 40 41
+42 43 44 45 46 47 48 49  4a 4b 4c 4d 4e 4f 30 31
+32 33 34 35 36 37 38 39  3a 3b 3c 3d 3e 3f 40 41
+42 43 44 45 46 47 48 49  4a 4b 4c 4d 4e 4f 30 31
+32 33 34 35 36 37 38 39  3a 3b 3c 3d 3e 3f 0a 83
+00 00 00 00 00 00 00 00  00                     
+
+# FIFO TX
+73 81
+# long reg 0x000 write: (0x000 << 5) | 0x8000 | 0x10  = 0x8010
+80 10
+# fifo contents
+00 6e 21 88 00 00  00 02 00 00 00 01 00 28
+00 02 00 01 00 01 00 40  00 0b 00 02 00 00 67 30
+31 32 33 34 35 36 37 38  39 3a 3b 3c 3d 3e 3f 40
+41 42 43 44 45 46 47 48  49 4a 4b 4c 4d 4e 4f 30
+31 32 33 34 35 36 37 38  39 3a 3b 3c 3d 3e 3f 40
+41 42 43 44 45 46 47 48  49 4a 4b 4c 4d 4e 4f 30
+31 32 33 34 35 36 37 38  39 3a 3b 3c 3d 3e 3f b5
+4e
+
+
+# dump for uz regs dump parse in our dump format
+# dump file format is: 2-hex-digits bytes or 4-hex-digits LE 16-bit words
+# line begins with # is comment
+
+# hdr: len[1] (payload len+2) type[1] : 1(in), 0x81 (out)
+
+#len
+04
+#type - out
+81
+#short reg 23 write, data 89
+47
+89
+
+
+#len/type
+05 81
+#long reg 201 write, data 51
+c0 30
+51
+
+
+#short reg 31 (isrsts) read
+#len/type
+03 81
+62
+#len/type
+04 01
+#short reg 31 (isrsts) read (data)
+62
+85
+
+
+#security fifo write
+16 81
+# long reg 2b0 write: (0x2b0 << 5) | 0x8000 | 0x10 = 0xd610
+d6 10
+#len
+00 10
+# fifo data
+01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10
+
+
+

@@ -1,0 +1,81 @@
+/*******************************************************************************
+ *
+ * Initialization code to get the DS80C390 and DS80C400 microcontrollers to 
+ * enter IAR extended1 mode.
+ *
+ * Copyright 2004-2005 IAR Systems. All rights reserved.
+ *
+ * $Revision: 4427 $
+ *
+ ******************************************************************************/
+
+#include "iar_common.h"
+
+	MODULE	__init_extended1
+#if (__CORE__ == __CORE_EXTENDED1__)
+	RSEG	CSTART:CODE:NOROOT
+	EXTERN	?DPX
+	EXTERN  ?TA
+	EXTERN  ?MCON
+	PUBLIC	__init_extended1
+	
+	
+__init_extended1:
+	POP	DPH
+	POP	DPL
+	MOV	?DPX,#0x00
+
+#if ((__CORE__ == __CORE_EXTENDED1__) && (__NUMBER_OF_DPTRS__ > 2)) ; Assume Dallas 400 Derivative.
+	EXTERN	?DPS1
+	ANL 	?DPS1,#0x3F ; Disable DEC-DPTR for Dallas 400
+#endif
+
+#if ((defined(__EXTENDED_STACK__)) && (__CODE_MODEL__ == __CM_FAR__) && (__CORE__ == __CORE_EXTENDED1__))
+	;
+        ; Enable and continous address mode and machine XDATA Stack in 0x2000-0x23FF
+	;
+	; XDATA is located between: 0x000000 - 0x0023FF
+	EXTERN	?ACON
+	MOV	?TA,#0xAA             ; TA   = 0xAA
+	MOV	?TA,#0x55             ; TA   = 0x55
+	ORL 	?ACON,#0x07           ; ACON.AM0 = 1 and ACON.AM1 = 1 and ACON.SA = 1
+        MOV     ?TA,#0xAA             ; TA   = 0xAA
+        MOV     ?TA,#0x55             ; TA   = 0x55
+        ORL     ?MCON,#0x40           ; MCON.IDM0 = 1
+        MOV     ?TA,#0xAA             ; TA   = 0xAA
+        MOV     ?TA,#0x55             ; TA   = 0x55
+        ANL     ?MCON,#0x7F           ; MCON.IDM1 = 0
+#elif (defined(__EXTENDED_STACK__))
+	;
+        ; Enable machine XDATA Stack in 0x2000-0x23FF
+	;
+	EXTERN	?ACON
+	MOV	?TA,#0xAA             ; TA   = 0xAA
+	MOV	?TA,#0x55             ; TA   = 0x55
+	ORL 	?ACON,#0x04           ; ACON.SA = 1
+        MOV     ?TA,#0xAA             ; TA   = 0xAA
+        MOV     ?TA,#0x55             ; TA   = 0x55
+        ORL     ?MCON,#0x40           ; MCON.IDM0 = 1
+        MOV     ?TA,#0xAA             ; TA   = 0xAA
+        MOV     ?TA,#0x55             ; TA   = 0x55
+        ANL     ?MCON,#0x7F           ; MCON.IDM1 = 0
+
+#elif (__CODE_MODEL__ == __CM_FAR__)
+	;
+        ; Enable continous address mode
+	;
+	EXTERN	?ACON
+	MOV	?TA,#0xAA             ; TA   = 0xAA
+	MOV	?TA,#0x55             ; TA   = 0x55
+	ORL 	?ACON,#0x03           ; ACON.AM0 = 1 and ACON.AM1 = 1
+#endif
+
+	
+	CLR     A
+	JMP	@A+DPTR
+#endif ; (__CORE__ == __CORE_EXTENDED1__)
+	
+	ENDMOD
+
+
+	END

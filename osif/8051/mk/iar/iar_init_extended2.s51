@@ -1,0 +1,174 @@
+/*******************************************************************************
+ *
+ * Initialization code to get the Mentor Graphics M8051W/M8051EW 
+ * microcontrollers to enter IAR extended2 mode.
+ *
+ * Copyright 2008 IAR Systems. All rights reserved.
+ *
+ * $Revision: 4775 $
+ *
+ ******************************************************************************/
+
+#include "iar_common.h"
+
+	MODULE	__init_extended2
+#if (__CORE__ == __CORE_EXTENDED2__)
+        RSEG	BANKED_CODE_INTERRUPTS_EXT2:CODE:NOROOT
+	RSEG	CSTART:CODE:NOROOT
+        EXTERN  ?MEX2
+        EXTERN  ?MEX3
+	PUBLIC	__init_extended2
+
+__init_extended2:
+	;; MEX2 and MEX3 = 0 at reset.
+;	ORL	?MEX2, #((?INTERRUPT_BANK & 0x0F)) ; Init interrupt bank
+        ORL	?MEX2, #((BYTE3(sfb(BANKED_CODE_INTERRUPTS_EXT2)) & 0x0F)) ; Init interrupt bank
+;        ORL	?MEX2, #((BYTE3(0x000E0000) & 0x0F)) ; Init interrupt bank
+	ORL	?MEX2, #0x80 	; Enable memory constant bank, MEX2.MCM
+	ORL	?MEX3, #0x08    ; Enable XDATA bank to follow the MEX3.MX bits by setting MEX3.MXM
+        RET
+	
+#endif ; (__CORE__ == __CORE_EXTENDED2__)
+	
+	ENDMOD
+;-----------------------------------------------------------------------------
+;
+;           Function: ?CALL_IND_EXT2
+;
+;           Description: This is a springboard function and must be placed in every bank.
+;
+;   Note that when code is executing in this module we have already switched
+;   bank. The calling convention to this module is:
+;     MOV DPTR0, #'low_addr of fun()'
+;     MOV ?MEX1, #'bank_nr of fun()'
+;     LCALL ?CALL_IND_EXT2
+;   The LCALL forces a bank-switch (the 'bank_nr' is pushed on MEXSP stack).
+;
+;           Register input:
+;                       DPTR0 = The low 16 bit part of the function address.
+;
+;           Register output:
+;                       A = Zero
+;
+;       Multiple DPTR
+;               Shadowed:       Requires DPTR: 0        Requires DPS: 0
+;                               Modifies DPTR: none     Returns  DPS: 0
+;
+;               Separate:       Requires DPTR: 0        Requires DPS: 0
+;                               Modifies DPTR: none     Returns  DPS: 0
+;
+;           Stack usage: NA
+;
+;-----------------------------------------------------------------------------
+	MODULE 	?CALL_IND_EXT2
+        RSEG   	BANKED_EXT2:CODE:NOROOT
+        PUBLIC 	?CALL_IND_EXT2
+	cfi BLOCK ?CALL_IND_EXT2 USING cfi_common
+	cfi NOFUNCTION
+?CALL_IND_EXT2:
+        CLR      A
+        JMP     @A+DPTR
+    	cfi ENDBLOCK ?CALL_IND_EXT2
+        ENDMOD
+
+;-----------------------------------------------------------------------------
+;
+;           Function: ?RET_EXT2
+;
+;           Description: This is a springboard return function used by
+;			 function epilogue code, FUNC_LEAVE_XDATA, that must be	
+;			 placed in every extended2 bank.
+;
+;
+;-----------------------------------------------------------------------------
+	MODULE 	?RET_EXT2
+        RSEG   	BANKED_EXT2:CODE:NOROOT
+        PUBLIC 	?RET_EXT2
+	cfi BLOCK ?RET_EXT2 USING cfi_common
+	cfi NOFUNCTION
+?RET_EXT2:
+	RET
+    	cfi ENDBLOCK ?RET_EXT2
+        ENDMOD
+
+;-----------------------------------------------------------------------------
+;
+;      Function: ?MEX1PUSH
+;
+;      Description: This is a springboard jump function used in longjmp to
+;                   emulate a PUSH of the bank register in MEX1. Must be	
+;                   duplicated in every code bank.
+;
+;
+;-----------------------------------------------------------------------------
+	MODULE 	?MEX1PUSH
+        RSEG   	BANKED_EXT2:CODE:NOROOT
+        PUBLIC 	?MEX1PUSH
+	EXTERN	?MEX1
+	EXTERN	?LONGJMP_EXT2
+	cfi BLOCK ?MEX1PUSH USING cfi_common
+	cfi NOFUNCTION
+?MEX1PUSH:
+	MOV ?MEX1,#0
+	LCALL ?LONGJMP_EXT2
+    	cfi ENDBLOCK ?MEX1PUSH
+        ENDMOD
+
+;-----------------------------------------------------------------------------
+;
+;           Function: ?MOV_MCB_CB
+;
+;           Description: "MOV MCB, CB", MCB = MEX3.7, MEX2.6-MEX2.4
+;					CB  = MEX1.7 - MEX1.4 
+;
+;	    Inparam A which is what MEX1 contained before call. Destroys A.
+; 
+;-----------------------------------------------------------------------------
+	MODULE 	?MOV_MCB_CB
+        RSEG   	RCODE:CODE:NOROOT
+        EXTERN  ?MEX1
+	EXTERN  ?MEX2
+	EXTERN  ?MEX3
+	PUBLIC 	?MOV_MCB_CB
+	cfi BLOCK ?MOV_MCB_CB USING cfi_common
+	cfi NOFUNCTION
+?MOV_MCB_CB:
+	PUSH	B
+	MOV	B,	A
+	ANL	A,	#0x70	; CB 2-0 
+        ANL	?MEX2,	#0x8F 	; Clear MCB2-0
+        ORL	?MEX2,	A     	; Mask in CB2-0
+	MOV	A,	B
+	ANL	A,	#0x80   ; CB 3
+        ANL	?MEX3,	#0x7F 	; Clear MCB3
+        ORL	?MEX3,	A     	; Mask in CB3
+	POP	B
+	RET
+	cfi ENDBLOCK ?MOV_MCB_CB
+        ENDMOD
+
+;-----------------------------------------------------------------------------
+;
+;           Function: ?RESTORE_MCB
+;
+;           Description: Restores MCB = MEX3.7, MEX2.6-MEX2.4 to ?CONSTANT_BANK
+;
+;-----------------------------------------------------------------------------
+	MODULE 	?RESTORE_MCB
+        RSEG	BANKED_CODE_EXT2_C:CODE:NOROOT
+        RSEG   	RCODE:CODE:NOROOT
+        EXTERN  ?MEX2
+        EXTERN  ?MEX3
+	PUBLIC 	?RESTORE_MCB
+	cfi BLOCK ?RESTORE_MCB USING cfi_common
+	cfi NOFUNCTION
+?RESTORE_MCB:
+	ANL	?MEX2,#0x8F
+        ORL	?MEX2,#((BYTE3(sfb(BANKED_CODE_EXT2_C)) & 0x07) << 4)
+        ANL	?MEX3,#0x7F
+        ORL	?MEX3,#((BYTE3(sfb(BANKED_CODE_EXT2_C)) & 0x08) << 4)
+	RET
+	cfi ENDBLOCK ?RESTORE_MCB
+        ENDMOD
+	END
+	
